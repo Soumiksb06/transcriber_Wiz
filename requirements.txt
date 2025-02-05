@@ -1,0 +1,4 @@
+fal_client
+yt-dlp
+streamlit
+python-dotenv
