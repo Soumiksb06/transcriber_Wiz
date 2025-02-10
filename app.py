@@ -128,7 +128,6 @@ def create_download_buttons():
         api_info = {
             "api": {
                 "name": "Wizper",
-                "version": "1.0",
                 "timestamp": datetime.now().isoformat()
             }
         }
