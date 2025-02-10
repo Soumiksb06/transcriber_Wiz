@@ -127,3 +127,9 @@ def transcribe_in_batches(file_path: str, max_size_mb: int = 30) -> dict:
     except Exception as e:
         log.log(f"Batch processing error: {str(e)}")
         return None
+
+def estimate_transcription_time(audio_file):
+    """Estimate transcription time based on file size."""
+    # Rough estimation: 1 MB takes about 2 seconds to process
+    file_size = os.path.getsize(audio_file)
+    return (file_size / (1024 * 1024)) * 2
