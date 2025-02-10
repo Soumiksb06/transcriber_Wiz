@@ -278,49 +278,39 @@ def handle_transcribe(url):
 # -------------------- Custom Download Buttons Using Provided Format --------------------
 
 def create_download_buttons_custom():
-    """Create download buttons for JSON and TXT versions of the transcript using safe_title and include metadata in both outputs."""
+    """Create download buttons for JSON and TXT versions of the transcript using safe_title and include full metadata."""
     if st.session_state.transcription_result:
         transcript_text = st.session_state.transcription_result.get("text", "")
-        # Ensure metadata exists; if not, provide defaults.
-        if not st.session_state.metadata:
-            st.session_state.metadata = {
-                "podcast": {
-                    "title": "Podcast Transcript",
-                    "show": "",
-                    "date_posted": ""
-                }
-            }
+        # Use the entire metadata as extracted by yt-dlp (assumed stored in st.session_state.metadata)
+        podcast_metadata = st.session_state.metadata if st.session_state.metadata else {}
         # Compute safe_title using get_episode_name (which returns a sanitized title)
         safe_title = get_episode_name(
             st.session_state.url, 
-            st.session_state.metadata.get('podcast', {}).get('title', 'Podcast Transcript')
+            podcast_metadata.get("title", "Podcast Transcript")
         )
-        # Build JSON structure including metadata
+        # Build JSON structure including all metadata
         json_data = {
             "api": {
                 "name": "Wizper"
             },
             "podcast": {
-                "title": st.session_state.metadata.get('podcast', {}).get('title', 'Podcast Transcript'),
-                "Podcast Show": st.session_state.metadata.get('podcast', {}).get('show', ''),
+                "title": podcast_metadata.get("title", "Podcast Transcript"),
+                "Podcast Show": podcast_metadata.get("uploader", ""),
                 "url": st.session_state.url,
-                "Date posted": st.session_state.metadata.get('podcast', {}).get('date_posted', ''),
+                "Date posted": podcast_metadata.get("upload_date", ""),
                 "Date transcribed": datetime.now().strftime('%Y-%m-%d')
             },
+            "metadata": podcast_metadata,
             "transcript": transcript_text,
             "chunks": st.session_state.transcription_result.get("chunks", [])
         }
         
-        # Build TXT content including metadata
+        # Build TXT content including metadata (printed as pretty JSON)
         txt_content = f"""Transcribed by Wizper API
 Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
 Podcast Metadata:
-Title: {st.session_state.metadata.get('podcast', {}).get('title', 'Podcast Transcript')}
-Podcast Show: {st.session_state.metadata.get('podcast', {}).get('show', '')}
-URL: {st.session_state.url}
-Date posted: {st.session_state.metadata.get('podcast', {}).get('date_posted', '')}
-Date transcribed: {datetime.now().strftime('%Y-%m-%d')}
+{json.dumps(podcast_metadata, indent=2)}
 
 Transcript:
 {transcript_text}
