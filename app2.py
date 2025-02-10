@@ -15,21 +15,14 @@ import contextlib
 # -------------------- Provided Components --------------------
 
 def setup_fal_api():
-    """Set up FAL API key from environment or prompt user"""
-    # Try to load from .env file first
-    load_dotenv()
-    fal_key = os.getenv('FAL_KEY')
-    
-    if not fal_key:
-        # If not in .env, prompt user (note: in Streamlit we avoid input())
-        fal_key = input("Enter your FAL API key: ")
+    """Set up FAL API key from st.secrets."""
+    try:
+        fal_key = st.secrets["FAL_KEY"]
         os.environ['FAL_KEY'] = fal_key
-    
-    # Verify the key is set
-    if not os.getenv('FAL_KEY'):
-        raise ValueError("FAL_KEY environment variable is not set")
-    
-    return fal_key
+        return fal_key
+    except Exception as e:
+        st.error("FAL_KEY not found in st.secrets. Please add it to your secrets file.")
+        raise e
 
 def sanitize_filename(filename):
     """
@@ -244,7 +237,7 @@ def transcribe_in_batches(file_path, max_size_mb=30):
 def download_and_transcribe(url):
     """Download audio from URL and transcribe"""
     try:
-        # Setup FAL API key first
+        # Setup FAL API key first from secrets
         setup_fal_api()
         
         start_time = time.time()
@@ -279,10 +272,14 @@ def main():
     st.set_page_config(page_title="Podcast Transcription App", layout="wide")
     st.title("🎙️ Podcast Transcription App")
     
-    st.sidebar.header("Configuration")
-    fal_key = st.sidebar.text_input("FAL API Key", type="password", help="Enter your Fal.ai API key")
-    if fal_key:
-        os.environ['FAL_KEY'] = fal_key  # Set the API key for use by setup_fal_api()
+    # Load FAL API key from st.secrets automatically
+    if "FAL_KEY" in st.secrets:
+        fal_key = st.secrets["FAL_KEY"]
+        os.environ["FAL_KEY"] = fal_key
+        st.sidebar.info("FAL API key loaded from secrets.")
+    else:
+        st.sidebar.error("FAL API key not found in secrets. Please add it to your secrets file.")
+        st.stop()
     
     st.sidebar.header("Instructions")
     st.sidebar.markdown("""
@@ -296,9 +293,6 @@ def main():
     if st.button("Download & Transcribe"):
         if not url:
             st.error("Please enter a valid URL.")
-            return
-        if not os.environ.get('FAL_KEY'):
-            st.error("Please enter your FAL API key in the sidebar.")
             return
         
         # Capture print() output for logs
