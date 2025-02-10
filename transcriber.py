@@ -89,10 +89,10 @@ def transcribe_audio(file_path: str) -> dict:
         log.log(f"Transcription error: {str(e)}")
         return None
 
-def transcribe_in_batches(file_path: str, max_size_mb: int = 15) -> dict:
+def transcribe_in_batches(file_path: str, max_size_mb: int = 8) -> dict:
     """
     Transcribe the audio file in batches if it is larger than max_size_mb.
-    For files larger than 15 MB, the batches are processed concurrently for efficiency.
+    For files larger than 8 MB, the batches are processed concurrently for efficiency.
     """
     try:
         batch_start_time = time.time()
@@ -101,8 +101,8 @@ def transcribe_in_batches(file_path: str, max_size_mb: int = 15) -> dict:
             return None
 
         file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
-        # For files smaller than or equal to 15 MB, process as a whole
-        if file_size_mb <= 15:
+        # For files smaller than or equal to 8 MB, process as a whole
+        if file_size_mb <= 8:
             return transcribe_audio(file_path)
 
         def get_audio_duration() -> float:
@@ -112,7 +112,7 @@ def transcribe_in_batches(file_path: str, max_size_mb: int = 15) -> dict:
             return float(duration)
 
         total_duration = get_audio_duration()
-        batch_duration = 15 * 60  # 15 minutes per batch
+        batch_duration = 8 * 60  # 8 minutes per batch
         full_transcription = {"text": "", "chunks": []}
         base_name = os.path.splitext(os.path.basename(file_path))[0]
         total_batches = (int(total_duration) + int(batch_duration) - 1) // int(batch_duration)
