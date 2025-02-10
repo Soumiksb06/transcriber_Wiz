@@ -19,7 +19,8 @@ def initialize_session_state():
         'transcription_error': None,
         'logs': "",
         'audio_duration': None,
-        'processing': False
+        'processing': False,
+        'transcription_completed': False  # Add new state variable
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -63,6 +64,7 @@ def format_file_size(size_in_bytes):
 def handle_download(url: str) -> bool:
     """Download audio from the provided URL and update session state."""
     st.session_state.download_error = None
+    st.session_state.transcription_completed = False  # Reset transcription state
     if not url:
         st.session_state.download_error = "Please enter a valid URL."
         return False
@@ -96,26 +98,34 @@ def handle_download(url: str) -> bool:
 
 def handle_transcription():
     """Transcribe the downloaded audio and update session state."""
+    if st.session_state.transcription_completed:
+        append_log("Transcription already completed.")
+        return
+
     st.session_state.transcription_error = None
     if not st.session_state.audio_file or not os.path.exists(st.session_state.audio_file):
         st.session_state.transcription_error = "No audio file available for transcription."
         append_log(st.session_state.transcription_error)
         return
 
-    st.session_state.processing = True
-    append_log("Starting transcription...")
-    
     try:
+        st.session_state.processing = True
+        append_log("Starting transcription...")
+        
         with st.spinner("Transcribing audio... This may take a few minutes."):
             result = transcribe_in_batches(st.session_state.audio_file)
             if result and result.get("text"):
                 st.session_state.transcription_result = result
                 title = st.session_state.metadata.get('podcast', {}).get('title', 'Podcast Transcript')
                 save_transcript(result, st.session_state.url, title, st.session_state.metadata)
+                st.session_state.transcription_completed = True
                 append_log("Transcription completed successfully.")
             else:
                 st.session_state.transcription_error = "Transcription failed or returned empty result."
                 append_log(st.session_state.transcription_error)
+    except Exception as e:
+        st.session_state.transcription_error = f"Transcription error: {str(e)}"
+        append_log(st.session_state.transcription_error)
     finally:
         st.session_state.processing = False
 
@@ -124,7 +134,6 @@ def create_download_buttons():
     if st.session_state.transcription_result and st.session_state.metadata:
         st.subheader("Download Results")
         
-        # Add API information
         api_info = {
             "api": {
                 "name": "Wizper",
@@ -173,10 +182,8 @@ def main():
     
     initialize_session_state()
 
-    # Header section
     st.title("🎙️ Podcast Transcription App")
     
-    # Help section in sidebar
     with st.sidebar:
         st.header("📖 How to Use")
         st.markdown("""
@@ -188,10 +195,8 @@ def main():
         **Supported Platforms:**
         - YouTube
         - Apple Podcasts
-        
         """)
 
-    # Main content area
     col_input, col_status = st.columns([2, 1])
     
     with col_input:
@@ -203,22 +208,15 @@ def main():
             help="Paste the URL of your podcast episode here"
         )
         
-        # Action buttons
         btn_cols = st.columns(2)
-        download_btn = btn_cols[0].button(
+        
+        # Handle download button
+        if btn_cols[0].button(
             "📥 Download Audio",
             disabled=st.session_state.processing,
             use_container_width=True,
             key="download_button"
-        )
-        transcribe_btn = btn_cols[1].button(
-            "🎯 Start Transcription",
-            disabled=not st.session_state.audio_file or st.session_state.processing,
-            use_container_width=True,
-            key="transcribe_button"
-        )
-
-        if download_btn:
+        ):
             if handle_download(url):
                 st.success("✅ Download completed successfully!")
                 if st.session_state.audio_duration:
@@ -227,9 +225,15 @@ def main():
             else:
                 st.error(f"❌ {st.session_state.download_error}")
 
-        if transcribe_btn:
+        # Handle transcription button
+        if btn_cols[1].button(
+            "🎯 Start Transcription",
+            disabled=not st.session_state.audio_file or st.session_state.processing,
+            use_container_width=True,
+            key="transcribe_button"
+        ):
             handle_transcription()
-            if st.session_state.transcription_result:
+            if st.session_state.transcription_completed:
                 st.success("✅ Transcription completed successfully!")
                 st.subheader("Transcript Preview")
                 st.text_area(
@@ -237,7 +241,7 @@ def main():
                     st.session_state.transcription_result.get("text", ""),
                     height=300
                 )
-            else:
+            elif st.session_state.transcription_error:
                 st.error(f"❌ {st.session_state.transcription_error}")
 
     with col_status:
@@ -249,7 +253,7 @@ def main():
             if st.session_state.audio_duration:
                 st.info(f"⏱️ Duration: {format_time(st.session_state.audio_duration)}")
         
-        if st.session_state.transcription_result:
+        if st.session_state.transcription_completed:
             create_download_buttons()
         
         display_logs()
