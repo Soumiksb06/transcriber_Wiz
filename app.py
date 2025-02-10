@@ -4,7 +4,7 @@ import yt_dlp
 import os
 from datetime import datetime, timedelta
 from config import setup_fal_api  # Assuming this sets up FAL_KEY if needed
-from utils import get_metadata
+from utils import get_metadata, sanitize_filename
 from transcriber import download_audio, transcribe_in_batches, estimate_transcription_time
 from file_manager import save_transcript
 
@@ -21,7 +21,8 @@ def initialize_session_state():
         'transcription_start_time': None,
         'estimated_completion_time': None,
         'download_error': None,
-        'transcription_error': None
+        'transcription_error': None,
+        'estimated_transcription_duration': None  # in seconds
     }
     
     for key, value in initial_states.items():
@@ -41,7 +42,6 @@ def check_existing_audio(url):
                 info_dict = ydl.extract_info(url, download=False)
                 # Get the expected filename using the title from the metadata
                 title = info_dict.get('title', 'video')
-                from utils import sanitize_filename  # if not imported already
                 expected_filename = f"{sanitize_filename(title)}.mp3"
                 if expected_filename == st.session_state.audio_file:
                     st.session_state.metadata = get_metadata(info_dict)
@@ -77,6 +77,8 @@ def handle_download(url: str):
                     st.session_state.url = url
                     st.session_state.file_size = os.path.getsize(audio_file)
                     st.session_state.download_complete = True
+                    # Calculate expected transcription duration (in seconds)
+                    st.session_state.estimated_transcription_duration = estimate_transcription_time(audio_file)
                     return True
                 else:
                     st.session_state.download_error = "Failed to download audio file."
@@ -94,7 +96,7 @@ def handle_transcription():
         return
     
     try:
-        # Calculate estimated completion time
+        # Calculate estimated completion time based on when transcription starts
         file_duration = estimate_transcription_time(st.session_state.audio_file)
         st.session_state.transcription_start_time = datetime.now()
         st.session_state.estimated_completion_time = datetime.now() + timedelta(seconds=file_duration)
@@ -220,6 +222,10 @@ def main():
         st.subheader("Status")
         if st.session_state.download_complete:
             st.success(f"✅ Download complete - {format_file_size(st.session_state.file_size)}")
+            if st.session_state.estimated_transcription_duration:
+                # Show expected transcription time in minutes (rounded)
+                expected_minutes = st.session_state.estimated_transcription_duration / 60
+                st.info(f"⏳ Expected transcription time: {expected_minutes:.2f} minutes")
         elif st.session_state.download_error:
             st.error(f"❌ {st.session_state.download_error}")
         
