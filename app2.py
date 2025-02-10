@@ -283,48 +283,62 @@ def handle_transcribe(url):
 # -------------------- Custom Download Buttons Using Provided Format --------------------
 
 def create_download_buttons_custom():
-    """Create download buttons for JSON and TXT versions of the transcript using safe_title and include full metadata and processing time."""
+    """Create download buttons for JSON and TXT versions of the transcript using safe_title and include full metadata.
+       Reformats 'Date posted' if it is an 8-digit string."""
     if st.session_state.transcription_result:
         transcript_text = st.session_state.transcription_result.get("text", "")
-        # Use the full metadata stored in st.session_state.metadata (from yt-dlp)
-        podcast_metadata = st.session_state.metadata if st.session_state.metadata else {}
-        # Compute safe_title using get_episode_name (which returns a sanitized title)
+        # Ensure metadata exists; if not, provide defaults.
+        if not st.session_state.metadata:
+            st.session_state.metadata = {
+                "podcast": {
+                    "title": "Podcast Transcript",
+                    "show": "",
+                    "date_posted": ""
+                }
+            }
+        # Compute safe_title using get_episode_name
         safe_title = get_episode_name(
             st.session_state.url, 
-            podcast_metadata.get("title", "Podcast Transcript")
+            st.session_state.metadata.get('podcast', {}).get('title', 'Podcast Transcript')
         )
+        # Get raw date_posted from metadata
+        raw_date_posted = st.session_state.metadata.get('podcast', {}).get('date_posted', '')
+        # If raw_date_posted is 8 digits, reformat it as YYYY-MM-DD
+        if len(raw_date_posted) == 8 and raw_date_posted.isdigit():
+            formatted_date_posted = f"{raw_date_posted[:4]}-{raw_date_posted[4:6]}-{raw_date_posted[6:]}"
+        else:
+            formatted_date_posted = raw_date_posted
+
         # Build JSON structure including all metadata
         json_data = {
             "api": {
                 "name": "Wizper"
             },
             "podcast": {
-                "title": podcast_metadata.get("title", "Podcast Transcript"),
-                "Podcast Show": podcast_metadata.get("uploader", ""),  # for example, uploader as show
+                "title": st.session_state.metadata.get('podcast', {}).get('title', 'Podcast Transcript'),
+                "Podcast Show": st.session_state.metadata.get('podcast', {}).get('show', ''),
                 "url": st.session_state.url,
-                "Date posted": podcast_metadata.get("upload_date", ""),
+                "Date posted": formatted_date_posted,
                 "Date transcribed": datetime.now().strftime('%Y-%m-%d')
             },
-            "metadata": podcast_metadata,
+            "metadata": st.session_state.metadata,
             "transcript": transcript_text,
             "chunks": st.session_state.transcription_result.get("chunks", [])
         }
         
-        # Build TXT content including full metadata and processing time (if available)
-        total_time = f"{st.session_state.total_processing_time:.2f} seconds" if st.session_state.total_processing_time else "N/A"
+        # Build TXT content including full metadata and processing time
         txt_content = f"""Transcribed by Wizper API
 Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
 Podcast Metadata:
-Title: {podcast_metadata.get("title", "Podcast Transcript")}
-Podcast Show: {podcast_metadata.get("uploader", "")}
+Title: {st.session_state.metadata.get('podcast', {}).get('title', 'Podcast Transcript')}
+Podcast Show: {st.session_state.metadata.get('podcast', {}).get('show', '')}
 URL: {st.session_state.url}
-Date posted: {podcast_metadata.get("upload_date", "")}
+Date posted: {formatted_date_posted}
 Date transcribed: {datetime.now().strftime('%Y-%m-%d')}
-Total Processing Time: {total_time}
 
 Full Metadata:
-{json.dumps(podcast_metadata, indent=2)}
+{json.dumps(st.session_state.metadata, indent=2)}
 
 Transcript:
 {transcript_text}
@@ -348,6 +362,7 @@ Transcript:
                 use_container_width=True,
                 key="download_txt_custom"
             )
+
 
 
 # -------------------- Main Streamlit App --------------------
