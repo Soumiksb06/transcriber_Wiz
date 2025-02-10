@@ -278,17 +278,27 @@ def handle_transcribe(url):
 # -------------------- Custom Download Buttons Using Provided Format --------------------
 
 def create_download_buttons_custom():
-    """Create download buttons for JSON and TXT versions of the transcript using a custom format."""
+    """Create download buttons for JSON and TXT versions of the transcript including metadata, with filenames based on safe_title."""
     if st.session_state.transcription_result:
         transcript_text = st.session_state.transcription_result.get("text", "")
         # Ensure metadata exists; if not, provide defaults.
         if not st.session_state.metadata:
-            st.session_state.metadata = {"podcast": {"title": "Podcast Transcript", "show": "", "date_posted": ""}}
-        # Compute safe_title using get_episode_name (which returns a sanitized title)
-        safe_title = get_episode_name(st.session_state.url, st.session_state.metadata.get('podcast', {}).get('title', 'Podcast Transcript'))
+            st.session_state.metadata = {
+                "podcast": {
+                    "title": "Podcast Transcript",
+                    "show": "",
+                    "date_posted": ""
+                }
+            }
+        # Compute safe_title using get_episode_name
+        safe_title = get_episode_name(
+            st.session_state.url, 
+            st.session_state.metadata.get('podcast', {}).get('title', 'Podcast Transcript')
+        )
+        # Build JSON structure
         json_data = {
             "api": {
-                "name": "Wizper",
+                "name": "Wizper"
             },
             "podcast": {
                 "title": st.session_state.metadata.get('podcast', {}).get('title', 'Podcast Transcript'),
@@ -301,13 +311,20 @@ def create_download_buttons_custom():
             "chunks": st.session_state.transcription_result.get("chunks", [])
         }
         
+        # Build TXT content including metadata
         txt_content = f"""Transcribed by Wizper API
 Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+Podcast Metadata:
+Title: {st.session_state.metadata.get('podcast', {}).get('title', 'Podcast Transcript')}
+Podcast Show: {st.session_state.metadata.get('podcast', {}).get('show', '')}
+URL: {st.session_state.url}
+Date posted: {st.session_state.metadata.get('podcast', {}).get('date_posted', '')}
+Date transcribed: {datetime.now().strftime('%Y-%m-%d')}
 
 Transcript:
 {transcript_text}
 """
-        
         col1, col2 = st.columns(2)
         with col1:
             st.download_button(
@@ -327,6 +344,7 @@ Transcript:
                 use_container_width=True,
                 key="download_txt_custom"
             )
+
 
 # -------------------- Main Streamlit App --------------------
 
