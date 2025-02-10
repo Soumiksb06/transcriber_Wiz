@@ -80,8 +80,15 @@ def transcribe_audio(file_path: str) -> dict:
                 "language": "en",
             },
             with_logs=True,
-            on_queue_update=lambda update: log.log("Queue update received")
+            on_queue_update=lambda update: (
+                [log.log(log_item.get("message", "No message")) for log_item in update.logs]
+                if hasattr(update, "logs") and update.logs else log.log("Queue update received")
+            )
         )
+        if result is None:
+            log.log("Error: API did not return any result.")
+        else:
+            log.log("Transcription result received.")
         return result
     except Exception as e:
         log.log(f"Transcription error: {str(e)}")
@@ -127,7 +134,6 @@ def transcribe_in_batches(file_path: str, max_size_mb: int = 30) -> dict:
                 if batch_result:
                     full_transcription["text"] += batch_result["text"] + " "
                     if "chunks" in batch_result:
-                        # Adjust chunk timestamps relative to the original file
                         for chunk in batch_result["chunks"]:
                             if "start" in chunk and "end" in chunk:
                                 chunk['start'] += start
