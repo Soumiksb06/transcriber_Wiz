@@ -18,8 +18,11 @@ from datetime import datetime, timedelta
 
 def append_log(message: str):
     """Append a timestamped message to process logs."""
+    if "logs" not in st.session_state:
+        st.session_state["logs"] = ""
     timestamp = datetime.now().strftime("%H:%M:%S")
-    st.session_state.logs += f"{timestamp} - {message}\n"
+    st.session_state["logs"] += f"{timestamp} - {message}\n"
+
 
 def format_time(seconds):
     return str(timedelta(seconds=int(seconds))).split('.')[0]
