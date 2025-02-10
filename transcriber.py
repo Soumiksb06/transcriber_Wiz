@@ -45,6 +45,16 @@ def download_audio(url: str) -> str:
 def transcribe_audio(file_path: str) -> dict:
     """
     Transcribe the audio file using Fal.ai.
+    
+    The function uploads the file using fal_client.upload_file() and then
+    calls fal_client.subscribe() with the following documented arguments:
+      - audio_url: URL of the uploaded file
+      - task: "transcribe"
+      - language: "en"
+      - chunk_level: "segment"
+      - version: "3"
+    
+    The on_queue_update callback logs each message from the API.
     """
     try:
         if not os.path.exists(file_path):
@@ -53,19 +63,26 @@ def transcribe_audio(file_path: str) -> dict:
         file_path = os.path.abspath(file_path)
         audio_url = fal_client.upload_file(file_path)
         log.log(f"Uploaded file URL: {audio_url}")
+        
+        # Define a callback that logs update messages from the API
+        def on_queue_update(update):
+            if hasattr(update, "logs") and update.logs:
+                for item in update.logs:
+                    log.log(item.get("message", "No message"))
+            else:
+                log.log("Queue update received.")
+        
         result = fal_client.subscribe(
             "fal-ai/wizper",
             arguments={
                 "audio_url": audio_url,
                 "task": "transcribe",
-                "chunk_level": "segment",
-                "version": "3",
                 "language": "en",
-                "diarize": True,
-                "num_speakers": 2
+                "chunk_level": "segment",
+                "version": "3"
             },
             with_logs=True,
-            on_queue_update=lambda update: log.log("Queue update received")
+            on_queue_update=on_queue_update
         )
         return result
     except Exception as e:
