@@ -189,12 +189,10 @@ def show_guide():
         
         ### Tips
         - Keep the tab open during transcription
-        - Previously downloaded episodes will be reused automatically
         - The JSON format includes extra metadata and timing information
         
         ### Supported Platforms
         - YouTube
-        - Spotify
         - Apple Podcasts
         - SoundCloud
         - Most major podcast platforms
