@@ -172,12 +172,8 @@ def main():
         
         **Supported Platforms:**
         - YouTube
-        - Spotify
-        - SoundCloud
-        - Direct MP3/MP4 links
-        
-        **Note:** Processing time depends on audio length. 
-        Typically 1 minute of audio takes about 10 seconds to process.
+        - Apple Podcasts
+
         """)
 
     # Main content area
