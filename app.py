@@ -161,11 +161,59 @@ def create_download_buttons():
                 use_container_width=True
             )
 
+def show_guide():
+    """Display the user guide in an expander."""
+    with st.expander("📖 How to Use This App"):
+        st.markdown("""
+        ### Quick Start Guide
+        
+        1. **Find a Podcast URL** 📎
+           - Copy the URL of any podcast episode you want to transcribe
+           - The app supports most major podcast platforms
+        
+        2. **Download the Audio** ⬇️
+           - Paste the URL in the input field
+           - Click 'Download Audio'
+           - Wait for the download to complete
+           - You'll see the file size once it's ready
+        
+        3. **Generate Transcript** 🎯
+           - Click 'Transcribe' after the download is complete
+           - The app will show estimated time remaining
+           - Wait for the transcription to finish
+        
+        4. **Get Your Results** 📄
+           - View the transcript directly in the app
+           - Download as TXT for plain text
+           - Download as JSON for detailed data including metadata
+        
+        ### Tips
+        - Keep the tab open during transcription
+        - Previously downloaded episodes will be reused automatically
+        - The JSON format includes extra metadata and timing information
+        
+        ### Supported Platforms
+        - YouTube
+        - Spotify
+        - Apple Podcasts
+        - SoundCloud
+        - Most major podcast platforms
+        
+        ### Need Help?
+        If you encounter any errors, check that:
+        - The URL is valid and accessible
+        - You have a stable internet connection
+        - The episode is publicly available
+        """)
+
 def main():
     st.set_page_config(page_title="Podcast Transcription App", layout="wide")
     
     st.title("🎙️ Podcast Transcription App")
     st.write("Transform your favorite podcasts into text with our easy-to-use transcription tool.")
+    
+    # Show the guide
+    show_guide()
     
     # Initialize session state
     initialize_session_state()
