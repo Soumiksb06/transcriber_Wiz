@@ -123,13 +123,29 @@ def create_download_buttons():
     """Create download buttons for JSON and TXT versions of the transcript."""
     if st.session_state.transcription_result and st.session_state.metadata:
         st.subheader("Download Results")
+        
+        # Add API information
+        api_info = {
+            "api": {
+                "name": "Wizper",
+                "version": "1.0",
+                "timestamp": datetime.now().isoformat()
+            }
+        }
+        
         full_data = {
+            **api_info,
             **st.session_state.metadata,
             "transcript": st.session_state.transcription_result.get("text", ""),
             "chunks": st.session_state.transcription_result.get("chunks", []),
             "raw_response": st.session_state.transcription_result
         }
-        txt_content = f"Transcript:\n{st.session_state.transcription_result.get('text', '')}\n"
+        
+        txt_content = f"""Transcribed by Wizper API
+Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+Transcript:
+{st.session_state.transcription_result.get('text', '')}\n"""
         
         col1, col2 = st.columns(2)
         with col1:
@@ -172,7 +188,12 @@ def main():
         
         **Supported Platforms:**
         - YouTube
-        - Apple Podcasts
+        - Spotify
+        - SoundCloud
+        - Direct MP3/MP4 links
+        
+        **Note:** Processing time depends on audio length. 
+        Typically 1 minute of audio takes about 10 seconds to process.
         """)
 
     # Main content area
