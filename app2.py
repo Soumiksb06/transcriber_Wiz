@@ -278,7 +278,7 @@ def handle_transcribe(url):
 # -------------------- Custom Download Buttons Using Provided Format --------------------
 
 def create_download_buttons_custom():
-    """Create download buttons for JSON and TXT versions of the transcript including metadata, with filenames based on safe_title."""
+    """Create download buttons for JSON and TXT versions of the transcript using safe_title and include metadata in both outputs."""
     if st.session_state.transcription_result:
         transcript_text = st.session_state.transcription_result.get("text", "")
         # Ensure metadata exists; if not, provide defaults.
@@ -290,12 +290,12 @@ def create_download_buttons_custom():
                     "date_posted": ""
                 }
             }
-        # Compute safe_title using get_episode_name
+        # Compute safe_title using get_episode_name (which returns a sanitized title)
         safe_title = get_episode_name(
             st.session_state.url, 
             st.session_state.metadata.get('podcast', {}).get('title', 'Podcast Transcript')
         )
-        # Build JSON structure
+        # Build JSON structure including metadata
         json_data = {
             "api": {
                 "name": "Wizper"
@@ -344,6 +344,7 @@ Transcript:
                 use_container_width=True,
                 key="download_txt_custom"
             )
+
 
 
 # -------------------- Main Streamlit App --------------------
