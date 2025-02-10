@@ -9,6 +9,15 @@ from logger import Logger
 
 log = Logger()
 
+def setup_api() -> bool:
+    """Ensure the API key is set before making API requests."""
+    api_key = os.getenv("FAL_KEY")
+    if not api_key:
+        log.log("Error: FAL_KEY environment variable is not set.")
+        return False
+    fal_client.set_api_key(api_key)
+    return True
+
 def download_audio(url: str) -> str:
     """
     Download audio from the given URL using yt-dlp.
@@ -28,7 +37,6 @@ def download_audio(url: str) -> str:
             }],
             'outtmpl': f'{safe_title}.%(ext)s',
             'restrict_filenames': True,
-            # Optionally, add 'ffmpeg_location': '/usr/bin' if needed.
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
@@ -44,14 +52,23 @@ def download_audio(url: str) -> str:
 
 def transcribe_audio(file_path: str) -> dict:
     """
-    Transcribe the audio file using Fal.ai.
+    Transcribe the audio file using the Wizper API.
     """
     try:
         if not os.path.exists(file_path):
             log.log(f"Error: Input file {file_path} does not exist")
             return None
+
+        # Set up API key
+        if not setup_api():
+            return None
+
         file_path = os.path.abspath(file_path)
         audio_url = fal_client.upload_file(file_path)
+        if not audio_url:
+            log.log("Error: File upload failed.")
+            return None
+
         log.log(f"Uploaded file URL: {audio_url}")
         result = fal_client.subscribe(
             "fal-ai/wizper",
@@ -61,8 +78,6 @@ def transcribe_audio(file_path: str) -> dict:
                 "chunk_level": "segment",
                 "version": "3",
                 "language": "en",
-                "diarize": True,
-                "num_speakers": 2
             },
             with_logs=True,
             on_queue_update=lambda update: log.log("Queue update received")
@@ -75,6 +90,7 @@ def transcribe_audio(file_path: str) -> dict:
 def transcribe_in_batches(file_path: str, max_size_mb: int = 30) -> dict:
     """
     Transcribe the audio file in batches if it is larger than max_size_mb.
+    Splits the file using ffmpeg and processes each batch separately.
     """
     try:
         batch_start_time = time.time()
@@ -111,9 +127,11 @@ def transcribe_in_batches(file_path: str, max_size_mb: int = 30) -> dict:
                 if batch_result:
                     full_transcription["text"] += batch_result["text"] + " "
                     if "chunks" in batch_result:
+                        # Adjust chunk timestamps relative to the original file
                         for chunk in batch_result["chunks"]:
-                            chunk['start'] += start
-                            chunk['end'] += start
+                            if "start" in chunk and "end" in chunk:
+                                chunk['start'] += start
+                                chunk['end'] += start
                             full_transcription["chunks"].append(chunk)
                 os.remove(batch_output)
                 batch_process_end = time.time()
@@ -128,8 +146,7 @@ def transcribe_in_batches(file_path: str, max_size_mb: int = 30) -> dict:
         log.log(f"Batch processing error: {str(e)}")
         return None
 
-def estimate_transcription_time(audio_file):
-    """Estimate transcription time based on file size."""
-    # Rough estimation: 1 MB takes about 10 seconds to process
+def estimate_transcription_time(audio_file: str) -> float:
+    """Estimate transcription time based on file size. Rough estimation: 1 MB takes about 10 seconds to process."""
     file_size = os.path.getsize(audio_file)
     return (file_size / (1024 * 1024)) * 10
