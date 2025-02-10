@@ -1,3 +1,94 @@
+# transcriber.py
+import os
+import subprocess
+import time
+import yt_dlp
+import fal_client
+from utils import sanitize_filename
+from logger import Logger
+
+log = Logger()
+
+def download_audio(url: str) -> str:
+    """
+    Download audio from the given URL using yt-dlp.
+    Returns the filename of the downloaded audio.
+    """
+    try:
+        with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
+            info_dict = ydl.extract_info(url, download=False)
+            title = info_dict.get('title', 'video')
+        safe_title = sanitize_filename(title)
+        ydl_opts = {
+            'format': 'bestaudio/best',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '192',
+            }],
+            'outtmpl': f'{safe_title}.%(ext)s',
+            'restrict_filenames': True,
+            # Optionally, add 'ffmpeg_location': '/usr/bin' if needed.
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+        final_filename = f"{safe_title}.mp3"
+        if os.path.exists(final_filename):
+            return final_filename
+        else:
+            log.log(f"Error: Expected output file {final_filename} not found")
+            return None
+    except Exception as e:
+        log.log(f"Download error: {str(e)}")
+        return None
+
+def transcribe_audio(file_path: str) -> dict:
+    """
+    Transcribe the audio file using Fal.ai.
+    
+    The function uploads the file using fal_client.upload_file() and then
+    calls fal_client.subscribe() with the following documented arguments:
+      - audio_url: URL of the uploaded file
+      - task: "transcribe"
+      - language: "en"
+      - chunk_level: "segment"
+      - version: "3"
+    
+    The on_queue_update callback logs each message from the API.
+    """
+    try:
+        if not os.path.exists(file_path):
+            log.log(f"Error: Input file {file_path} does not exist")
+            return None
+        file_path = os.path.abspath(file_path)
+        audio_url = fal_client.upload_file(file_path)
+        log.log(f"Uploaded file URL: {audio_url}")
+        
+        # Define a callback that logs update messages from the API
+        def on_queue_update(update):
+            if hasattr(update, "logs") and update.logs:
+                for item in update.logs:
+                    log.log(item.get("message", "No message"))
+            else:
+                log.log("Queue update received.")
+        
+        result = fal_client.subscribe(
+            "fal-ai/wizper",
+            arguments={
+                "audio_url": audio_url,
+                "task": "transcribe",
+                "language": "en",
+                "chunk_level": "segment",
+                "version": "3"
+            },
+            with_logs=True,
+            on_queue_update=on_queue_update
+        )
+        return result
+    except Exception as e:
+        log.log(f"Transcription error: {str(e)}")
+        return None
+
 def transcribe_in_batches(file_path, max_size_mb=8):
     """Transcribe audio file in batches if larger than specified size"""
     try:
