@@ -14,6 +14,16 @@ import contextlib
 import concurrent.futures
 from datetime import datetime, timedelta
 
+# -------------------- Utility Functions --------------------
+
+def append_log(message: str):
+    """Append a timestamped message to process logs."""
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    st.session_state.logs += f"{timestamp} - {message}\n"
+
+def format_time(seconds):
+    return str(timedelta(seconds=int(seconds))).split('.')[0]
+
 # -------------------- Provided Components --------------------
 
 def setup_fal_api():
@@ -27,7 +37,9 @@ def setup_fal_api():
         raise e
 
 def sanitize_filename(filename):
-    """Sanitize filename to handle special characters and encoding issues."""
+    """
+    Sanitize filename to handle special characters and encoding issues.
+    """
     filename = re.sub(r'\/podcast\/', '', filename)
     filename = re.sub(r'id\d+', '', filename)
     filename = filename.split('?')[0]
@@ -39,7 +51,9 @@ def sanitize_filename(filename):
     return filename
 
 def get_episode_name(url, fallback_title=None):
-    """Extract episode name from URL or use fallback title."""
+    """
+    Extract episode name from URL or use fallback title.
+    """
     try:
         if 'podcast' in url:
             path = url.split('/')
@@ -52,7 +66,7 @@ def get_episode_name(url, fallback_title=None):
             return sanitize_filename(fallback_title)
         return 'transcript'
     except Exception as e:
-        print(f"Error extracting episode name: {str(e)}")
+        append_log(f"Error extracting episode name: {str(e)}")
         return 'transcript'
 
 def save_transcript(result, url=None, title=None):
@@ -64,14 +78,14 @@ def save_transcript(result, url=None, title=None):
             json_filename = f"{episode_name}_full.json"
             with open(transcript_filename, 'w', encoding='utf-8') as f:
                 f.write(result['text'])
-            print(f"Transcript saved successfully to {transcript_filename}")
+            append_log(f"Transcript saved successfully to {transcript_filename}")
             with open(json_filename, 'w', encoding='utf-8') as f:
                 json.dump(result, f, ensure_ascii=False, indent=2)
-            print(f"Full transcript data saved to {json_filename}")
+            append_log(f"Full transcript data saved to {json_filename}")
         except Exception as e:
-            print(f"Error saving transcript: {str(e)}")
+            append_log(f"Error saving transcript: {str(e)}")
     else:
-        print("Error: No valid transcription result to save")
+        append_log("Error: No valid transcription result to save")
 
 def download_audio(url):
     """Download audio from URL using yt-dlp with encoding handling."""
@@ -96,10 +110,10 @@ def download_audio(url):
             if os.path.exists(final_filename):
                 return final_filename
             else:
-                print(f"Error: Expected output file {final_filename} not found")
+                append_log(f"Error: Expected output file {final_filename} not found")
                 return None
     except Exception as e:
-        print(f"Download error: {str(e)}")
+        append_log(f"Download error: {str(e)}")
         return None
 
 def on_queue_update(update):
@@ -107,19 +121,19 @@ def on_queue_update(update):
     if isinstance(update, fal_client.InProgress):
         for log in update.logs:
             try:
-                print(log["message"].encode('utf-8', errors='replace').decode('utf-8'))
+                append_log(log["message"])
             except Exception as e:
-                print(f"Log encoding error: {str(e)}")
+                append_log(f"Log encoding error: {str(e)}")
 
 def transcribe_audio(file_path: str):
     """Transcribe audio file using Fal.ai."""
     try:
         if not os.path.exists(file_path):
-            print(f"Error: Input file {file_path} does not exist")
+            append_log(f"Error: Input file {file_path} does not exist")
             return None
         file_path = os.path.abspath(file_path)
         audio_url = fal_client.upload_file(file_path)
-        print(f"Uploaded file URL: {audio_url}")
+        append_log(f"Uploaded file URL: {audio_url}")
         result = fal_client.subscribe(
             "fal-ai/wizper",
             arguments={
@@ -134,7 +148,7 @@ def transcribe_audio(file_path: str):
         )
         return result
     except Exception as e:
-        print(f"Transcription error: {str(e)}")
+        append_log(f"Transcription error: {str(e)}")
         return None
 
 def transcribe_in_batches(file_path, max_size_mb=30):
@@ -146,13 +160,10 @@ def transcribe_in_batches(file_path, max_size_mb=30):
         # For simplicity, we call transcribe_audio even for larger files.
         return transcribe_audio(file_path)
     except Exception as e:
-        print(f"Batch processing error: {str(e)}")
+        append_log(f"Batch processing error: {str(e)}")
         return None
 
-# -------------------- Session State and Utility Functions --------------------
-
-def format_time(seconds):
-    return str(timedelta(seconds=int(seconds))).split('.')[0]
+# -------------------- Session State Initialization --------------------
 
 def initialize_session_state():
     defaults = {
@@ -182,7 +193,7 @@ def handle_transcribe(url):
     st.session_state.transcription_error = ""
     
     setup_fal_api()
-    print("Starting process...")
+    append_log("Starting process...")
     
     # Create an overall progress bar (0 to 100)
     overall_progress = st.progress(0)
@@ -196,9 +207,9 @@ def handle_transcribe(url):
         podcast_duration = info_dict.get('duration')
         st.session_state.audio_duration = podcast_duration
         if podcast_duration:
-            print(f"Podcast Duration: {format_time(podcast_duration)}")
+            append_log(f"Podcast Duration: {format_time(podcast_duration)}")
         else:
-            print("Podcast duration not found.")
+            append_log("Podcast duration not found.")
         title = info_dict.get('title', None)
         # Store metadata (adjust as needed)
         st.session_state.metadata = {
@@ -209,21 +220,21 @@ def handle_transcribe(url):
             }
         }
     except Exception as e:
-        print(f"Metadata extraction error: {str(e)}")
+        append_log(f"Metadata extraction error: {str(e)}")
         st.session_state.audio_duration = None
         title = None
     overall_progress.progress(10)
     
     # --- Stage 2: Download Audio (10-30%) ---
     overall_progress_text.text("Downloading audio...")
-    print("Downloading audio...")
+    append_log("Downloading audio...")
     audio_file = download_audio(url)
     if audio_file and os.path.exists(audio_file):
         st.session_state.audio_file = audio_file
-        print(f"Downloaded audio: {audio_file}")
+        append_log(f"Downloaded audio: {audio_file}")
     else:
         st.session_state.download_error = "Failed to download audio file."
-        print(st.session_state.download_error)
+        append_log(st.session_state.download_error)
         overall_progress_text.text(st.session_state.download_error)
         return None
     overall_progress.progress(30)
@@ -233,7 +244,7 @@ def handle_transcribe(url):
         estimated_time = (st.session_state.audio_duration / 3600) * 5 * 60  # in seconds
     else:
         estimated_time = 120  # fallback 2 minutes
-    print(f"Estimated transcription time: {format_time(estimated_time)}")
+    append_log(f"Estimated transcription time: {format_time(estimated_time)}")
     overall_progress_text.text("Transcribing audio...")
     
     transcription_start = time.time()
@@ -254,17 +265,17 @@ def handle_transcribe(url):
     if result and result.get("text"):
         st.session_state.transcription_result = result
         st.session_state.transcription_completed = True
-        print("Transcription completed successfully.")
+        append_log("Transcription completed successfully.")
         save_transcript(result, url=url, title=title)
         overall_progress.progress(100)
         overall_progress_text.text("Process complete!")
     else:
         st.session_state.transcription_error = "Transcription failed or returned empty result."
-        print(st.session_state.transcription_error)
+        append_log(st.session_state.transcription_error)
         overall_progress_text.text(st.session_state.transcription_error)
     return result
 
-# -------------------- Custom Download Buttons (Using Your Format) --------------------
+# -------------------- Custom Download Buttons Using Provided Format --------------------
 
 def create_download_buttons_custom():
     """Create download buttons for JSON and TXT versions of the transcript using a custom format."""
@@ -364,7 +375,8 @@ def main():
             st.info(f"File: {os.path.basename(st.session_state.audio_file)}")
             try:
                 size = os.path.getsize(st.session_state.audio_file)
-                st.info(f"Size: {size} bytes")
+                size_mb = size / (1024 * 1024)
+                st.info(f"Size: {size_mb:.2f} MB")
             except Exception:
                 pass
         if st.session_state.audio_duration:
