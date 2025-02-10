@@ -264,6 +264,7 @@ def main():
     if "FAL_KEY" in st.secrets:
         fal_key = st.secrets["FAL_KEY"]
         os.environ["FAL_KEY"] = fal_key
+        st.sidebar.info("FAL API key loaded from secrets.")
     else:
         st.sidebar.error("FAL API key not found in secrets. Please add it to your secrets file.")
         st.stop()
