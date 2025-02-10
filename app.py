@@ -194,8 +194,6 @@ def show_guide():
         ### Supported Platforms
         - YouTube
         - Apple Podcasts
-        - SoundCloud
-        - Most major podcast platforms
         
         ### Need Help?
         If you encounter any errors, check that:
