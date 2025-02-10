@@ -173,7 +173,6 @@ def main():
         **Supported Platforms:**
         - YouTube
         - Apple Podcasts
-
         """)
 
     # Main content area
@@ -216,6 +215,12 @@ def main():
             handle_transcription()
             if st.session_state.transcription_result:
                 st.success("✅ Transcription completed successfully!")
+                st.subheader("Transcript Preview")
+                st.text_area(
+                    "",
+                    st.session_state.transcription_result.get("text", ""),
+                    height=300
+                )
             else:
                 st.error(f"❌ {st.session_state.transcription_error}")
 
@@ -229,12 +234,6 @@ def main():
                 st.info(f"⏱️ Duration: {format_time(st.session_state.audio_duration)}")
         
         if st.session_state.transcription_result:
-            st.subheader("Transcript Preview")
-            st.text_area(
-                "",
-                st.session_state.transcription_result.get("text", ""),
-                height=300
-            )
             create_download_buttons()
         
         display_logs()
