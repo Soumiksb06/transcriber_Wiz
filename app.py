@@ -40,7 +40,6 @@ def check_existing_audio(url):
         if st.session_state.audio_file and os.path.exists(st.session_state.audio_file):
             with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
                 info_dict = ydl.extract_info(url, download=False)
-                # Get the expected filename using the title from the metadata
                 title = info_dict.get('title', 'video')
                 expected_filename = f"{sanitize_filename(title)}.mp3"
                 if expected_filename == st.session_state.audio_file:
@@ -108,7 +107,6 @@ def handle_transcription():
             result = transcribe_in_batches(st.session_state.audio_file)
             if result:
                 st.session_state.transcription_result = result
-                # The podcast title is assumed to be part of the metadata structure
                 podcast_title = st.session_state.metadata.get('podcast', {}).get('title', 'Podcast Transcript')
                 save_transcript(result, st.session_state.url, podcast_title, st.session_state.metadata)
                 progress_bar.progress(100)
@@ -124,7 +122,6 @@ def create_download_buttons():
     if st.session_state.transcription_result and st.session_state.metadata:
         col1, col2 = st.columns(2)
         
-        # Prepare download data
         full_data = {
             **st.session_state.metadata,
             'transcript': st.session_state.transcription_result.get("text", ""),
@@ -223,7 +220,6 @@ def main():
         if st.session_state.download_complete:
             st.success(f"✅ Download complete - {format_file_size(st.session_state.file_size)}")
             if st.session_state.estimated_transcription_duration:
-                # Show expected transcription time in minutes (rounded)
                 expected_minutes = st.session_state.estimated_transcription_duration / 60
                 st.info(f"⏳ Expected transcription time: {expected_minutes:.2f} minutes")
         elif st.session_state.download_error:
