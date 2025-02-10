@@ -283,8 +283,8 @@ def handle_transcribe(url):
 # -------------------- Custom Download Buttons Using Provided Format --------------------
 
 def create_download_buttons_custom():
-    """Create download buttons for JSON and TXT versions of the transcript using safe_title and include full metadata,
-       with 'Date posted' reformatted (e.g. '20250204' becomes '2025-02-04')."""
+    """Create download buttons for JSON and TXT versions of the transcript using safe_title and include only minimal metadata and transcript.
+       'Date posted' is reformatted (e.g. '20250204' becomes '2025-02-04')."""
     if st.session_state.transcription_result:
         transcript_text = st.session_state.transcription_result.get("text", "")
         # Ensure metadata exists; if not, provide defaults.
@@ -294,7 +294,7 @@ def create_download_buttons_custom():
                 "title": "Podcast Transcript",
                 "uploader": "",
             }
-        # Use 'upload_date' from the full metadata if available
+        # Use 'upload_date' from metadata if available
         raw_date_posted = st.session_state.metadata.get("upload_date", "")
         if raw_date_posted and len(raw_date_posted) == 8 and raw_date_posted.isdigit():
             formatted_date_posted = f"{raw_date_posted[:4]}-{raw_date_posted[4:6]}-{raw_date_posted[6:]}"
@@ -306,7 +306,7 @@ def create_download_buttons_custom():
             st.session_state.url, 
             st.session_state.metadata.get("title", "Podcast Transcript")
         )
-        # Build JSON structure including all metadata
+        # Build minimal JSON structure (only podcast metadata and transcript)
         json_data = {
             "api": {
                 "name": "Wizper"
@@ -318,12 +318,10 @@ def create_download_buttons_custom():
                 "Date posted": formatted_date_posted,
                 "Date transcribed": datetime.now().strftime('%Y-%m-%d')
             },
-            "metadata": st.session_state.metadata,
-            "transcript": transcript_text,
-            "chunks": st.session_state.transcription_result.get("chunks", [])
+            "transcript": transcript_text
         }
         
-        # Build TXT content including full metadata
+        # Build TXT content including minimal metadata
         txt_content = f"""Transcribed by Wizper API
 Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
@@ -333,9 +331,6 @@ Podcast Show: {st.session_state.metadata.get("uploader", "")}
 URL: {st.session_state.url}
 Date posted: {formatted_date_posted}
 Date transcribed: {datetime.now().strftime('%Y-%m-%d')}
-
-Full Metadata:
-{json.dumps(st.session_state.metadata, indent=2)}
 
 Transcript:
 {transcript_text}
