@@ -47,10 +47,18 @@ def format_time(seconds):
     return str(timedelta(seconds=seconds)).split('.')[0]
 
 def calculate_estimated_time(duration):
-    """Calculate estimated transcription time (1 min audio = 10 sec processing)."""
+    """Calculate estimated transcription time (1 hour audio = 5 min processing)."""
     if duration:
-        return duration * 10 / 60  # Convert to minutes
+        return (duration / 3600) * 5  # Convert to minutes (1 hour = 5 minutes)
     return None
+
+def format_file_size(size_in_bytes):
+    """Convert bytes to human readable format."""
+    for unit in ['B', 'KB', 'MB', 'GB']:
+        if size_in_bytes < 1024.0:
+            return f"{size_in_bytes:.1f} {unit}"
+        size_in_bytes /= 1024.0
+    return f"{size_in_bytes:.1f} TB"
 
 def handle_download(url: str) -> bool:
     """Download audio from the provided URL and update session state."""
@@ -189,12 +197,14 @@ def main():
         download_btn = btn_cols[0].button(
             "📥 Download Audio",
             disabled=st.session_state.processing,
-            use_container_width=True
+            use_container_width=True,
+            key="download_button"
         )
         transcribe_btn = btn_cols[1].button(
             "🎯 Start Transcription",
             disabled=not st.session_state.audio_file or st.session_state.processing,
-            use_container_width=True
+            use_container_width=True,
+            key="transcribe_button"
         )
 
         if download_btn:
@@ -217,6 +227,8 @@ def main():
         st.subheader("Status")
         if st.session_state.audio_file:
             st.info(f"📁 File: {os.path.basename(st.session_state.audio_file)}")
+            if st.session_state.file_size:
+                st.info(f"💾 Size: {format_file_size(st.session_state.file_size)}")
             if st.session_state.audio_duration:
                 st.info(f"⏱️ Duration: {format_time(st.session_state.audio_duration)}")
         
