@@ -27,9 +27,7 @@ def setup_fal_api():
         raise e
 
 def sanitize_filename(filename):
-    """
-    Sanitize filename to handle special characters and encoding issues
-    """
+    """Sanitize filename to handle special characters and encoding issues."""
     filename = re.sub(r'\/podcast\/', '', filename)
     filename = re.sub(r'id\d+', '', filename)
     filename = filename.split('?')[0]
@@ -41,9 +39,7 @@ def sanitize_filename(filename):
     return filename
 
 def get_episode_name(url, fallback_title=None):
-    """
-    Extract episode name from URL or use fallback title
-    """
+    """Extract episode name from URL or use fallback title."""
     try:
         if 'podcast' in url:
             path = url.split('/')
@@ -60,7 +56,7 @@ def get_episode_name(url, fallback_title=None):
         return 'transcript'
 
 def save_transcript(result, url=None, title=None):
-    """Save transcription result to episode-named file"""
+    """Save transcription result to episode-named file."""
     if result and 'text' in result:
         try:
             episode_name = get_episode_name(url, title)
@@ -78,7 +74,7 @@ def save_transcript(result, url=None, title=None):
         print("Error: No valid transcription result to save")
 
 def download_audio(url):
-    """Download audio from URL using yt-dlp with encoding handling"""
+    """Download audio from URL using yt-dlp with encoding handling."""
     try:
         with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
             info_dict = ydl.extract_info(url, download=False)
@@ -107,7 +103,7 @@ def download_audio(url):
         return None
 
 def on_queue_update(update):
-    """Handle transcription queue updates"""
+    """Handle transcription queue updates."""
     if isinstance(update, fal_client.InProgress):
         for log in update.logs:
             try:
@@ -116,7 +112,7 @@ def on_queue_update(update):
                 print(f"Log encoding error: {str(e)}")
 
 def transcribe_audio(file_path: str):
-    """Transcribe audio file using Fal.ai"""
+    """Transcribe audio file using Fal.ai."""
     try:
         if not os.path.exists(file_path):
             print(f"Error: Input file {file_path} does not exist")
@@ -142,7 +138,7 @@ def transcribe_audio(file_path: str):
         return None
 
 def transcribe_in_batches(file_path, max_size_mb=30):
-    """Transcribe audio file in batches if larger than specified size"""
+    """Transcribe audio file in batches if larger than specified size."""
     try:
         file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
         if file_size_mb <= max_size_mb:
@@ -162,6 +158,7 @@ def initialize_session_state():
     defaults = {
         "audio_file": None,
         "transcription_result": None,
+        "metadata": None,
         "download_error": "",
         "transcription_error": "",
         "logs": "",
@@ -174,7 +171,7 @@ def initialize_session_state():
         if key not in st.session_state:
             st.session_state[key] = value
 
-# -------------------- New Transcription Handler --------------------
+# -------------------- New Transcription Handler with Overall Progress Bar --------------------
 
 def handle_transcribe(url):
     # Reset previous state
@@ -187,7 +184,12 @@ def handle_transcribe(url):
     setup_fal_api()
     print("Starting process...")
     
-    # --- Extract Metadata & Podcast Duration ---
+    # Create an overall progress bar (0 to 100)
+    overall_progress = st.progress(0)
+    overall_progress_text = st.empty()
+    
+    # --- Stage 1: Extract Metadata & Podcast Duration (0-10%) ---
+    overall_progress_text.text("Extracting metadata...")
     try:
         with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
             info_dict = ydl.extract_info(url, download=False)
@@ -198,12 +200,22 @@ def handle_transcribe(url):
         else:
             print("Podcast duration not found.")
         title = info_dict.get('title', None)
+        # Store metadata (adjust as needed)
+        st.session_state.metadata = {
+            "podcast": {
+                "title": title or "Podcast Transcript",
+                "show": "",
+                "date_posted": ""
+            }
+        }
     except Exception as e:
         print(f"Metadata extraction error: {str(e)}")
         st.session_state.audio_duration = None
         title = None
-
-    # --- Download Audio ---
+    overall_progress.progress(10)
+    
+    # --- Stage 2: Download Audio (10-30%) ---
+    overall_progress_text.text("Downloading audio...")
     print("Downloading audio...")
     audio_file = download_audio(url)
     if audio_file and os.path.exists(audio_file):
@@ -212,41 +224,96 @@ def handle_transcribe(url):
     else:
         st.session_state.download_error = "Failed to download audio file."
         print(st.session_state.download_error)
+        overall_progress_text.text(st.session_state.download_error)
         return None
-
-    # --- Calculate Estimated Transcription Time ---
+    overall_progress.progress(30)
+    
+    # --- Stage 3: Transcription (30-90%) ---
     if st.session_state.audio_duration:
         estimated_time = (st.session_state.audio_duration / 3600) * 5 * 60  # in seconds
     else:
         estimated_time = 120  # fallback 2 minutes
     print(f"Estimated transcription time: {format_time(estimated_time)}")
+    overall_progress_text.text("Transcribing audio...")
     
-    # --- Transcribe Audio with Real-Time Progress Updates ---
-    progress_bar = st.empty()
-    progress_text = st.empty()
-    start_time = time.time()
+    transcription_start = time.time()
     with concurrent.futures.ThreadPoolExecutor() as executor:
         future = executor.submit(transcribe_in_batches, st.session_state.audio_file)
         while not future.done():
-            elapsed = time.time() - start_time
-            progress = min(elapsed / estimated_time, 1.0)
-            progress_bar.progress(progress)
+            elapsed = time.time() - transcription_start
+            transcription_progress = min(elapsed / estimated_time, 1.0)
+            overall_progress.progress(30 + int(transcription_progress * 60))  # 30 to 90%
             remaining = max(estimated_time - elapsed, 0)
-            progress_text.text(f"Estimated time remaining: {int(remaining)} seconds")
+            overall_progress_text.text(f"Transcribing... Estimated time remaining: {int(remaining)} seconds")
             time.sleep(1)
         result = future.result()
-        progress_bar.progress(1.0)
-        progress_text.text("Transcription complete!")
+    overall_progress.progress(90)
+    overall_progress_text.text("Transcription complete!")
     
+    # --- Stage 4: Save Transcript (90-100%) ---
     if result and result.get("text"):
         st.session_state.transcription_result = result
         st.session_state.transcription_completed = True
         print("Transcription completed successfully.")
         save_transcript(result, url=url, title=title)
+        overall_progress.progress(100)
+        overall_progress_text.text("Process complete!")
     else:
         st.session_state.transcription_error = "Transcription failed or returned empty result."
         print(st.session_state.transcription_error)
+        overall_progress_text.text(st.session_state.transcription_error)
     return result
+
+# -------------------- Custom Download Buttons (Using Your Format) --------------------
+
+def create_download_buttons_custom():
+    """Create download buttons for JSON and TXT versions of the transcript using a custom format."""
+    if st.session_state.transcription_result:
+        transcript_text = st.session_state.transcription_result.get("text", "")
+        # Ensure metadata exists; if not, provide defaults.
+        if not st.session_state.metadata:
+            st.session_state.metadata = {"podcast": {"title": "Podcast Transcript", "show": "", "date_posted": ""}}
+        json_data = {
+            "api": {
+                "name": "Wizper",
+            },
+            "podcast": {
+                "title": st.session_state.metadata.get('podcast', {}).get('title', 'Podcast Transcript'),
+                "Podcast Show": st.session_state.metadata.get('podcast', {}).get('show', ''),
+                "url": st.session_state.url,
+                "Date posted": st.session_state.metadata.get('podcast', {}).get('date_posted', ''),
+                "Date transcribed": datetime.now().strftime('%Y-%m-%d')
+            },
+            "transcript": transcript_text,
+            "chunks": st.session_state.transcription_result.get("chunks", [])
+        }
+        
+        txt_content = f"""Transcribed by Wizper API
+Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+Transcript:
+{transcript_text}
+"""
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            st.download_button(
+                "📥 Download JSON",
+                data=json.dumps(json_data, indent=2),
+                file_name="transcript.json",
+                mime="application/json",
+                use_container_width=True,
+                key="download_json_custom"
+            )
+        with col2:
+            st.download_button(
+                "📄 Download TXT",
+                data=txt_content,
+                file_name="transcript.txt",
+                mime="text/plain",
+                use_container_width=True,
+                key="download_txt_custom"
+            )
 
 # -------------------- Main Streamlit App --------------------
 
@@ -303,40 +370,7 @@ def main():
         if st.session_state.audio_duration:
             st.info(f"Podcast Duration: {format_time(st.session_state.audio_duration)}")
         if st.session_state.transcription_completed:
-            try:
-                with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
-                    info_dict = ydl.extract_info(st.session_state.url, download=False)
-                    title = info_dict.get('title', None)
-            except Exception as e:
-                title = None
-            episode_name = get_episode_name(st.session_state.url, title)
-            transcript_filename = f"{episode_name}.txt"
-            json_filename = f"{episode_name}_full.json"
-            transcript_text = ""
-            transcript_json = ""
-            if os.path.exists(transcript_filename):
-                with open(transcript_filename, 'r', encoding='utf-8') as f:
-                    transcript_text = f.read()
-            if os.path.exists(json_filename):
-                with open(json_filename, 'r', encoding='utf-8') as f:
-                    transcript_json = f.read()
-            col1, col2 = st.columns(2)
-            with col1:
-                st.download_button(
-                    label="📄 Download TXT",
-                    data=transcript_text,
-                    file_name=transcript_filename,
-                    mime="text/plain",
-                    key="download_txt"
-                )
-            with col2:
-                st.download_button(
-                    label="📥 Download JSON",
-                    data=transcript_json,
-                    file_name=json_filename,
-                    mime="application/json",
-                    key="download_json"
-                )
+            create_download_buttons_custom()
         st.subheader("Process Logs")
         st.text_area("", st.session_state.logs, height=200)
 
