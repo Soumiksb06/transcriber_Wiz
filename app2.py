@@ -284,6 +284,8 @@ def create_download_buttons_custom():
         # Ensure metadata exists; if not, provide defaults.
         if not st.session_state.metadata:
             st.session_state.metadata = {"podcast": {"title": "Podcast Transcript", "show": "", "date_posted": ""}}
+        # Compute safe_title using get_episode_name (which returns a sanitized title)
+        safe_title = get_episode_name(st.session_state.url, st.session_state.metadata.get('podcast', {}).get('title', 'Podcast Transcript'))
         json_data = {
             "api": {
                 "name": "Wizper",
@@ -311,7 +313,7 @@ Transcript:
             st.download_button(
                 "📥 Download JSON",
                 data=json.dumps(json_data, indent=2),
-                file_name="transcript.json",
+                file_name=f"{safe_title}_full.json",
                 mime="application/json",
                 use_container_width=True,
                 key="download_json_custom"
@@ -320,7 +322,7 @@ Transcript:
             st.download_button(
                 "📄 Download TXT",
                 data=txt_content,
-                file_name="transcript.txt",
+                file_name=f"{safe_title}.txt",
                 mime="text/plain",
                 use_container_width=True,
                 key="download_txt_custom"
