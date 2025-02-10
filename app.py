@@ -188,6 +188,7 @@ def main():
         **Supported Platforms:**
         - YouTube
         - Apple Podcasts
+        
         """)
 
     # Main content area
