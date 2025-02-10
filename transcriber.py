@@ -89,10 +89,14 @@ def transcribe_audio(file_path: str) -> dict:
         log.log(f"Transcription error: {str(e)}")
         return None
 
-def transcribe_in_batches(file_path: str, max_size_mb: int = 15) -> dict:
+def transcribe_in_batches(file_path: str, max_size_mb: int = 12) -> dict:
     """
-    Transcribe the audio file in batches if it is larger than max_size_mb.
-    For files larger than 15 MB, the batches are processed concurrently for efficiency.
+    Transcribe the audio file in batches if it is larger than the threshold.
+    
+    Files that are less than or equal to 12 MB and 12 minutes in duration
+    are processed using transcribe_audio() (the same logic as small files).
+    Otherwise, the file is split into 30-minute batches and each batch is
+    transcribed using the same logic as for small files.
     """
     try:
         batch_start_time = time.time()
@@ -101,25 +105,29 @@ def transcribe_in_batches(file_path: str, max_size_mb: int = 15) -> dict:
             return None
 
         file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
-        # For files smaller than or equal to 15 MB, process as a whole
-        if file_size_mb <= 15:
-            return transcribe_audio(file_path)
-
+        
+        # Define function to get audio duration in seconds
         def get_audio_duration() -> float:
             escaped_path = file_path.replace('"', '\\"')
             cmd = f'ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "{escaped_path}"'
             duration = subprocess.check_output(cmd, shell=True)
             return float(duration)
+        
+        duration = get_audio_duration()
+        
+        # If file is <= 12 MB and <= 12 minutes, process as a small file
+        if file_size_mb <= 12 and duration <= 12 * 60:
+            return transcribe_audio(file_path)
 
-        total_duration = get_audio_duration()
-        batch_duration = 15 * 60  # 15 minutes per batch
+        # Otherwise, process in batches
+        batch_duration = 12 * 60  # 12 minutes per batch
         full_transcription = {"text": "", "chunks": []}
         base_name = os.path.splitext(os.path.basename(file_path))[0]
-        total_batches = (int(total_duration) + int(batch_duration) - 1) // int(batch_duration)
+        total_batches = (int(duration) + int(batch_duration) - 1) // int(batch_duration)
         log.log(f"Processing {total_batches} batches concurrently...")
 
-        # Process batches concurrently
         from concurrent.futures import ThreadPoolExecutor, as_completed
+        max_workers = min(4, total_batches)
 
         def process_batch(start: int, batch_num: int) -> tuple:
             batch_process_start = time.time()
@@ -139,15 +147,18 @@ def transcribe_in_batches(file_path: str, max_size_mb: int = 15) -> dict:
                 log.log(f"Error: Batch file {batch_output} was not created")
             return start, result
 
-        starts = list(range(0, int(total_duration), int(batch_duration)))
+        starts = list(range(0, int(duration), int(batch_duration)))
         results = []
-        with ThreadPoolExecutor() as executor:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {executor.submit(process_batch, start, i+1): start for i, start in enumerate(starts)}
             for future in as_completed(futures):
-                start, batch_result = future.result()
-                if batch_result:
-                    results.append((start, batch_result))
-        # Sort results by start time
+                try:
+                    start, batch_result = future.result(timeout=600)  # 10-minute timeout per batch
+                    if batch_result:
+                        results.append((start, batch_result))
+                except Exception as e:
+                    log.log(f"Batch starting at {futures[future]} timed out or error: {str(e)}")
+
         results.sort(key=lambda x: x[0])
         for start, batch_result in results:
             if batch_result:
