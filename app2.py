@@ -194,9 +194,13 @@ def handle_transcribe(url):
     st.session_state.transcription_completed = False
     st.session_state.download_error = ""
     st.session_state.transcription_error = ""
-    
+    st.session_state.total_processing_time = None
+
     setup_fal_api()
     append_log("Starting process...")
+    
+    # Record overall start time
+    overall_start_time = time.time()
     
     # Create an overall progress bar (0 to 100)
     overall_progress = st.progress(0)
@@ -207,6 +211,8 @@ def handle_transcribe(url):
     try:
         with yt_dlp.YoutubeDL({'quiet': True}) as ydl:
             info_dict = ydl.extract_info(url, download=False)
+        # Store full metadata (the entire info_dict)
+        st.session_state.metadata = info_dict
         podcast_duration = info_dict.get('duration')
         st.session_state.audio_duration = podcast_duration
         if podcast_duration:
@@ -214,14 +220,6 @@ def handle_transcribe(url):
         else:
             append_log("Podcast duration not found.")
         title = info_dict.get('title', None)
-        # Store metadata (adjust as needed)
-        st.session_state.metadata = {
-            "podcast": {
-                "title": title or "Podcast Transcript",
-                "show": "",
-                "date_posted": ""
-            }
-        }
     except Exception as e:
         append_log(f"Metadata extraction error: {str(e)}")
         st.session_state.audio_duration = None
@@ -276,15 +274,19 @@ def handle_transcribe(url):
         st.session_state.transcription_error = "Transcription failed or returned empty result."
         append_log(st.session_state.transcription_error)
         overall_progress_text.text(st.session_state.transcription_error)
+    
+    # Record total processing time
+    st.session_state.total_processing_time = time.time() - overall_start_time
+    append_log(f"Total processing time: {st.session_state.total_processing_time:.2f} seconds")
     return result
 
 # -------------------- Custom Download Buttons Using Provided Format --------------------
 
 def create_download_buttons_custom():
-    """Create download buttons for JSON and TXT versions of the transcript using safe_title and include full metadata."""
+    """Create download buttons for JSON and TXT versions of the transcript using safe_title and include full metadata and processing time."""
     if st.session_state.transcription_result:
         transcript_text = st.session_state.transcription_result.get("text", "")
-        # Use the entire metadata as extracted by yt-dlp (assumed stored in st.session_state.metadata)
+        # Use the full metadata stored in st.session_state.metadata (from yt-dlp)
         podcast_metadata = st.session_state.metadata if st.session_state.metadata else {}
         # Compute safe_title using get_episode_name (which returns a sanitized title)
         safe_title = get_episode_name(
@@ -298,7 +300,7 @@ def create_download_buttons_custom():
             },
             "podcast": {
                 "title": podcast_metadata.get("title", "Podcast Transcript"),
-                "Podcast Show": podcast_metadata.get("uploader", ""),
+                "Podcast Show": podcast_metadata.get("uploader", ""),  # for example, uploader as show
                 "url": st.session_state.url,
                 "Date posted": podcast_metadata.get("upload_date", ""),
                 "Date transcribed": datetime.now().strftime('%Y-%m-%d')
@@ -308,11 +310,20 @@ def create_download_buttons_custom():
             "chunks": st.session_state.transcription_result.get("chunks", [])
         }
         
-        # Build TXT content including metadata (printed as pretty JSON)
+        # Build TXT content including full metadata and processing time (if available)
+        total_time = f"{st.session_state.total_processing_time:.2f} seconds" if st.session_state.total_processing_time else "N/A"
         txt_content = f"""Transcribed by Wizper API
 Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
 Podcast Metadata:
+Title: {podcast_metadata.get("title", "Podcast Transcript")}
+Podcast Show: {podcast_metadata.get("uploader", "")}
+URL: {st.session_state.url}
+Date posted: {podcast_metadata.get("upload_date", "")}
+Date transcribed: {datetime.now().strftime('%Y-%m-%d')}
+Total Processing Time: {total_time}
+
+Full Metadata:
 {json.dumps(podcast_metadata, indent=2)}
 
 Transcript:
@@ -337,7 +348,6 @@ Transcript:
                 use_container_width=True,
                 key="download_txt_custom"
             )
-
 
 
 # -------------------- Main Streamlit App --------------------
